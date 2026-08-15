@@ -1,9 +1,18 @@
-# Dependencies
 node_modules/
-
-# Environment variables
-.env
-
-# Build
 dist/
-build/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# TypeScript
+*.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
