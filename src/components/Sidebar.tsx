@@ -17,6 +17,7 @@ import type { Project } from "@/lib/types";
 import type { LucideIcon } from "lucide-react";
 
 interface SidebarProps {
+  isAdmin: any;
   projects: Project[];
   activeProjectId: string | null;
   view: "board" | "backlog";
@@ -35,6 +36,7 @@ const navItems: { label: string; icon: string; view: "board" | "backlog" }[] = [
 ];
 
 export default function Sidebar({
+  isAdmin,
   projects,
   activeProjectId,
   view,
@@ -97,7 +99,7 @@ export default function Sidebar({
             letterSpacing: "-0.02em",
           }}
         >
-          Vicky Track
+          Vicky Stack
         </Typography>
       </Box>
 
@@ -213,10 +215,21 @@ export default function Sidebar({
 
       {onOpenChat && (
         <List sx={{ px: 1.5, pb: 0.5 }} dense>
-          <ListItem disablePadding sx={{ borderRadius: 1, "&:hover": { bgcolor: "rgba(255,255,255,0.06)" } }}>
+          <ListItem
+            disablePadding
+            sx={{
+              borderRadius: 1,
+              "&:hover": { bgcolor: "rgba(255,255,255,0.06)" },
+            }}
+          >
             <ListItemButton
               onClick={onOpenChat}
-              sx={{ borderRadius: 1, py: 0.875, px: 1.5, "&:hover": { bgcolor: "transparent" } }}
+              sx={{
+                borderRadius: 1,
+                py: 0.875,
+                px: 1.5,
+                "&:hover": { bgcolor: "transparent" },
+              }}
             >
               <ListItemIcon sx={{ minWidth: 32, color: "#94a3b8" }}>
                 {(() => {
@@ -226,7 +239,15 @@ export default function Sidebar({
               </ListItemIcon>
               <ListItemText
                 primary="Team Chat"
-                slotProps={{ primary: { sx: { fontSize: "0.85rem", fontWeight: 500, color: "#cbd5e1" } } }}
+                slotProps={{
+                  primary: {
+                    sx: {
+                      fontSize: "0.85rem",
+                      fontWeight: 500,
+                      color: "#cbd5e1",
+                    },
+                  },
+                }}
               />
             </ListItemButton>
           </ListItem>
@@ -256,21 +277,23 @@ export default function Sidebar({
         >
           Projects
         </Typography>
-        <Tooltip title="New project">
-          <IconButton
-            onClick={onCreateProject}
-            sx={{
-              p: 0.25,
-              color: "#64748b",
-              "&:hover": { color: "#818cf8", bgcolor: "transparent" },
-            }}
-          >
-            {(() => {
-              const Icon = iconFor("Plus");
-              return <Icon size={15} />;
-            })()}
-          </IconButton>
-        </Tooltip>
+        {isAdmin && (
+          <Tooltip title="New project">
+            <IconButton
+              onClick={onCreateProject}
+              sx={{
+                p: 0.25,
+                color: "#64748b",
+                "&:hover": { color: "#818cf8", bgcolor: "transparent" },
+              }}
+            >
+              {(() => {
+                const Icon = iconFor("Plus");
+                return <Icon size={15} />;
+              })()}
+            </IconButton>
+          </Tooltip>
+        )}
       </Box>
 
       <List sx={{ px: 1.5, flex: 1, overflowY: "auto", pb: 2 }} dense>
