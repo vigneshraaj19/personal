@@ -1,0 +1,134 @@
+-- ══════════════════════════════════════════════════════════════════
+-- Team chat + notifications
+-- Run after 001, 002, 004.
+--
+-- Adds:
+--   • channels          — team chat (one per team), project chat (one
+--                          per project), group chats, and 1:1 DMs
+--   • channel_members   — who's in a group chat / DM (informational;
+--                          not enforced by RLS — see note below)
+--   • messages          — channel messages, with thread replies via
+--                          parent_message_id, soft delete, pin, edit
+--   • notifications     — in-app notifications (mentions, issue
+--                          assignments, new comments)
+--
+-- RLS is left wide open (to public), matching every other table in
+-- this app — same trade-off you already accepted for `users`.
+-- ══════════════════════════════════════════════════════════════════
+
+create table if not exists channels (
+  id uuid primary key default gen_random_uuid(),
+  type text not null check (type in ('team', 'project', 'group', 'dm')),
+  name text not null,
+  project_id uuid references projects(id) on delete cascade,
+  team_id uuid references teams(id) on delete cascade,
+  created_by uuid references users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists channel_members (
+  channel_id uuid not null references channels(id) on delete cascade,
+  user_id uuid not null references users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (channel_id, user_id)
+);
+
+create table if not exists messages (
+  id uuid primary key default gen_random_uuid(),
+  channel_id uuid not null references channels(id) on delete cascade,
+  author_id uuid references users(id) on delete set null,
+  body text not null,
+  parent_message_id uuid references messages(id) on delete cascade,
+  pinned boolean not null default false,
+  edited_at timestamptz,
+  deleted_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists notifications (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  type text not null check (type in ('mention', 'assignment', 'comment')),
+  title text not null,
+  body text,
+  channel_id uuid references channels(id) on delete cascade,
+  issue_id uuid references issues(id) on delete cascade,
+  read boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+-- ── Row Level Security (open, like the rest of this app) ──────────
+alter table channels enable row level security;
+alter table channel_members enable row level security;
+alter table messages enable row level security;
+alter table notifications enable row level security;
+
+drop policy if exists "open access" on channels;
+create policy "open access" on channels for all to public using (true) with check (true);
+
+drop policy if exists "open access" on channel_members;
+create policy "open access" on channel_members for all to public using (true) with check (true);
+
+drop policy if exists "open access" on messages;
+create policy "open access" on messages for all to public using (true) with check (true);
+
+drop policy if exists "open access" on notifications;
+create policy "open access" on notifications for all to public using (true) with check (true);
+
+-- ── Auto-create a Team Chat / Project Chat channel ─────────────────
+create or replace function public.handle_new_team_channel()
+returns trigger as $$
+begin
+  insert into public.channels (type, name, team_id) values ('team', new.name || ' Team Chat', new.id);
+  return new;
+end;
+$$ language plpgsql security definer;
+
+drop trigger if exists on_team_created_make_channel on teams;
+create trigger on_team_created_make_channel
+  after insert on teams
+  for each row execute procedure public.handle_new_team_channel();
+
+create or replace function public.handle_new_project_channel()
+returns trigger as $$
+begin
+  insert into public.channels (type, name, project_id) values ('project', new.name || ' Chat', new.id);
+  return new;
+end;
+$$ language plpgsql security definer;
+
+drop trigger if exists on_project_created_make_channel on projects;
+create trigger on_project_created_make_channel
+  after insert on projects
+  for each row execute procedure public.handle_new_project_channel();
+
+-- ── Realtime ────────────────────────────────────────────────────────
+-- Lets the app get live updates for new/edited/deleted messages and
+-- new notifications without polling. Safe to re-run — skips tables
+-- that are already in the publication.
+do $$
+begin
+  execute 'alter publication supabase_realtime add table messages';
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  execute 'alter publication supabase_realtime add table notifications';
+exception when duplicate_object then null;
+end $$;
+
+-- ══════════════════════════════════════════════════════════════════
+-- Notes:
+-- 1. channel_members isn't enforced by RLS (everything's open, same
+--    as every other table here) — it's used by the app to know who's
+--    in a group chat / DM and to avoid creating duplicate DM channels,
+--    not to restrict access. Any signed-in user can technically see
+--    any channel via the anon key.
+-- 2. @mentions are matched client-side against a user's first name or
+--    email prefix (best effort — there's no rich mention picker yet).
+-- 3. Existing teams/projects (created before this migration) won't
+--    retroactively get a chat channel from the trigger. Create one
+--    manually if needed:
+--    insert into channels (type, name, team_id) values ('team', 'My Team Chat', '<team-id>');
+-- ══════════════════════════════════════════════════════════════════
