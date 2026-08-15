@@ -40,6 +40,7 @@ import LoginPage from "@/components/auth/LoginPage";
 import AdminDashboard from "@/components/admin/AdminDashboard";
 import ChatView from "@/components/chat/ChatView";
 import { useAuth } from "@/lib/auth-context";
+//wgwegwgwg
 
 export default function App() {
   const { profile, loading: authLoading, isAdmin, logout } = useAuth();
